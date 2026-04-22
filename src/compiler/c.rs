@@ -614,6 +614,7 @@ where
                 &env_vars,
                 &preprocessor_result.stdout,
                 self.compiler.plusplus(),
+                &self.parsed_args.output_pretty(),
             )
         };
 
@@ -1453,29 +1454,51 @@ pub fn hash_key(
     env_vars: &[(OsString, OsString)],
     preprocessor_output: &[u8],
     plusplus: bool,
+    output_file: &str,
 ) -> String {
     // If you change any of the inputs to the hash, you should change `CACHE_VERSION`.
     let mut m = Digest::new();
+    debug!("[{}]: hash_key compiler_digest: {}", output_file, compiler_digest);
     m.update(compiler_digest.as_bytes());
     // clang and clang++ have different behavior despite being byte-for-byte identical binaries, so
     // we have to incorporate that into the hash as well.
+    debug!("[{}]: hash_key plusplus: {}", output_file, plusplus);
     m.update(&[plusplus as u8]);
+    debug!(
+        "[{}]: hash_key cache_version: {}",
+        output_file,
+        String::from_utf8_lossy(CACHE_VERSION)
+    );
     m.update(CACHE_VERSION);
+    debug!("[{}]: hash_key language: {}", output_file, language.as_str());
     m.update(language.as_str().as_bytes());
     for arg in arguments {
+        debug!("[{}]: hash_key argument: {}", output_file, arg.to_string_lossy());
         arg.hash(&mut HashToDigest { digest: &mut m });
     }
     for hash in extra_hashes {
+        debug!("[{}]: hash_key extra_hash: {}", output_file, hash);
         m.update(hash.as_bytes());
     }
 
     for (var, val) in env_vars.iter() {
         if CACHED_ENV_VARS.contains(var.as_os_str()) {
+            debug!(
+                "[{}]: hash_key env_var: {}={}",
+                output_file,
+                var.to_string_lossy(),
+                val.to_string_lossy()
+            );
             var.hash(&mut HashToDigest { digest: &mut m });
             m.update(&b"="[..]);
             val.hash(&mut HashToDigest { digest: &mut m });
         }
     }
+    debug!(
+        "[{}]: hash_key preprocessor_output: {} bytes",
+        output_file,
+        preprocessor_output.len()
+    );
     m.update(preprocessor_output);
     m.finish()
 }
@@ -1491,8 +1514,8 @@ mod test {
         let args = ovec!["a", "b", "c"];
         const PREPROCESSED: &[u8] = b"hello world";
         assert_eq!(
-            hash_key("abcd", Language::C, &args, &[], &[], PREPROCESSED, false),
-            hash_key("abcd", Language::C, &args, &[], &[], PREPROCESSED, false)
+            hash_key("abcd", Language::C, &args, &[], &[], PREPROCESSED, false, ""),
+            hash_key("abcd", Language::C, &args, &[], &[], PREPROCESSED, false, "")
         );
     }
 
@@ -1501,8 +1524,8 @@ mod test {
         let args = ovec!["a", "b", "c"];
         const PREPROCESSED: &[u8] = b"hello world";
         assert_neq!(
-            hash_key("abcd", Language::C, &args, &[], &[], PREPROCESSED, false),
-            hash_key("abcd", Language::C, &args, &[], &[], PREPROCESSED, true)
+            hash_key("abcd", Language::C, &args, &[], &[], PREPROCESSED, false, ""),
+            hash_key("abcd", Language::C, &args, &[], &[], PREPROCESSED, true, "")
         );
     }
 
@@ -1511,7 +1534,7 @@ mod test {
         let args = ovec!["a", "b", "c"];
         const PREPROCESSED: &[u8] = b"hello world";
         assert_neq!(
-            hash_key("abcd", Language::C, &args, &[], &[], PREPROCESSED, false),
+            hash_key("abcd", Language::C, &args, &[], &[], PREPROCESSED, false, ""),
             hash_key(
                 "abcd",
                 Language::CHeader,
@@ -1519,7 +1542,8 @@ mod test {
                 &[],
                 &[],
                 PREPROCESSED,
-                false
+                false,
+                "",
             )
         );
     }
@@ -1529,7 +1553,7 @@ mod test {
         let args = ovec!["a", "b", "c"];
         const PREPROCESSED: &[u8] = b"hello world";
         assert_neq!(
-            hash_key("abcd", Language::Cxx, &args, &[], &[], PREPROCESSED, true),
+            hash_key("abcd", Language::Cxx, &args, &[], &[], PREPROCESSED, true, ""),
             hash_key(
                 "abcd",
                 Language::CxxHeader,
@@ -1537,7 +1561,8 @@ mod test {
                 &[],
                 &[],
                 PREPROCESSED,
-                true
+                true,
+                "",
             )
         );
     }
@@ -1547,8 +1572,8 @@ mod test {
         let args = ovec!["a", "b", "c"];
         const PREPROCESSED: &[u8] = b"hello world";
         assert_neq!(
-            hash_key("abcd", Language::C, &args, &[], &[], PREPROCESSED, false),
-            hash_key("wxyz", Language::C, &args, &[], &[], PREPROCESSED, false)
+            hash_key("abcd", Language::C, &args, &[], &[], PREPROCESSED, false, ""),
+            hash_key("wxyz", Language::C, &args, &[], &[], PREPROCESSED, false, "")
         );
     }
 
@@ -1561,18 +1586,18 @@ mod test {
         let a = ovec!["a"];
         const PREPROCESSED: &[u8] = b"hello world";
         assert_neq!(
-            hash_key(digest, Language::C, &abc, &[], &[], PREPROCESSED, false),
-            hash_key(digest, Language::C, &xyz, &[], &[], PREPROCESSED, false)
+            hash_key(digest, Language::C, &abc, &[], &[], PREPROCESSED, false, ""),
+            hash_key(digest, Language::C, &xyz, &[], &[], PREPROCESSED, false, "")
         );
 
         assert_neq!(
-            hash_key(digest, Language::C, &abc, &[], &[], PREPROCESSED, false),
-            hash_key(digest, Language::C, &ab, &[], &[], PREPROCESSED, false)
+            hash_key(digest, Language::C, &abc, &[], &[], PREPROCESSED, false, ""),
+            hash_key(digest, Language::C, &ab, &[], &[], PREPROCESSED, false, "")
         );
 
         assert_neq!(
-            hash_key(digest, Language::C, &abc, &[], &[], PREPROCESSED, false),
-            hash_key(digest, Language::C, &a, &[], &[], PREPROCESSED, false)
+            hash_key(digest, Language::C, &abc, &[], &[], PREPROCESSED, false, ""),
+            hash_key(digest, Language::C, &a, &[], &[], PREPROCESSED, false, "")
         );
     }
 
@@ -1587,9 +1612,19 @@ mod test {
                 &[],
                 &[],
                 &b"hello world"[..],
-                false
+                false,
+                "",
             ),
-            hash_key("abcd", Language::C, &args, &[], &[], &b"goodbye"[..], false)
+            hash_key(
+                "abcd",
+                Language::C,
+                &args,
+                &[],
+                &[],
+                &b"goodbye"[..],
+                false,
+                "",
+            )
         );
     }
 
@@ -1599,11 +1634,11 @@ mod test {
         let digest = "abcd";
         const PREPROCESSED: &[u8] = b"hello world";
         for var in CACHED_ENV_VARS.iter() {
-            let h1 = hash_key(digest, Language::C, &args, &[], &[], PREPROCESSED, false);
+            let h1 = hash_key(digest, Language::C, &args, &[], &[], PREPROCESSED, false, "");
             let vars = vec![(OsString::from(var), OsString::from("something"))];
-            let h2 = hash_key(digest, Language::C, &args, &[], &vars, PREPROCESSED, false);
+            let h2 = hash_key(digest, Language::C, &args, &[], &vars, PREPROCESSED, false, "");
             let vars = vec![(OsString::from(var), OsString::from("something else"))];
-            let h3 = hash_key(digest, Language::C, &args, &[], &vars, PREPROCESSED, false);
+            let h3 = hash_key(digest, Language::C, &args, &[], &vars, PREPROCESSED, false, "");
             assert_neq!(h1, h2);
             assert_neq!(h2, h3);
         }
@@ -1624,9 +1659,10 @@ mod test {
                 &extra_data,
                 &[],
                 PREPROCESSED,
-                false
+                false,
+                "",
             ),
-            hash_key(digest, Language::C, &args, &[], &[], PREPROCESSED, false)
+            hash_key(digest, Language::C, &args, &[], &[], PREPROCESSED, false, "")
         );
     }
 
