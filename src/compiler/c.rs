@@ -610,7 +610,7 @@ where
                 &self.executable_digest,
                 self.parsed_args.language,
                 &common_and_arch_args,
-                &extra_hashes,
+                &extra_hashes.into_iter().zip(&self.parsed_args.extra_hash_files).collect::<Vec<_>>(),
                 &env_vars,
                 &preprocessor_result.stdout,
                 self.compiler.plusplus(),
@@ -1450,7 +1450,7 @@ pub fn hash_key(
     compiler_digest: &str,
     language: Language,
     arguments: &[OsString],
-    extra_hashes: &[String],
+    extra_hashes: &[(String, &PathBuf)],
     env_vars: &[(OsString, OsString)],
     preprocessor_output: &[u8],
     plusplus: bool,
@@ -1476,8 +1476,8 @@ pub fn hash_key(
         debug!("[{}]: hash_key argument: {}", output_file, arg.to_string_lossy());
         arg.hash(&mut HashToDigest { digest: &mut m });
     }
-    for hash in extra_hashes {
-        debug!("[{}]: hash_key extra_hash: {}", output_file, hash);
+    for (hash, path) in extra_hashes {
+        debug!("[{}]: hash_key extra_hash: {} {}", output_file, hash, path.display());
         m.update(hash.as_bytes());
     }
 
