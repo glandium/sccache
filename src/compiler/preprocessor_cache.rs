@@ -386,20 +386,27 @@ pub fn preprocessor_cache_entry_hash_key(
     // If you change any of the inputs to the hash, you should change `FORMAT_VERSION`.
     let mut m = Digest::new();
     m.update(compiler_digest.as_bytes());
+    trace!(target: "hash_key", "preprocessor: compiler_digest = {compiler_digest:?}");
     // clang and clang++ have different behavior despite being byte-for-byte identical binaries, so
     // we have to incorporate that into the hash as well.
     m.update(&[plusplus as u8]);
+    trace!(target: "hash_key", "preprocessor: plusplus = {plusplus:?}");
     m.update(&[FORMAT_VERSION]);
+    trace!(target: "hash_key", "preprocessor: format_version = {FORMAT_VERSION:?}");
     m.update(language.as_str().as_bytes());
+    trace!(target: "hash_key", "preprocessor: language = {language:?}");
     for arg in arguments {
         arg.hash(&mut HashToDigest { digest: &mut m });
     }
+    trace!(target: "hash_key", "preprocessor: arguments = {arguments:?}");
     for hash in extra_hashes {
         m.update(hash.as_bytes());
     }
+    trace!(target: "hash_key", "preprocessor: extra_hashes = {extra_hashes:?}");
 
     for (var, val) in env_vars.iter() {
         if CACHED_ENV_VARS.contains(var.as_os_str()) {
+            trace!(target: "hash_key", "preprocessor: env var {var:?} = {val:?}");
             var.hash(&mut HashToDigest { digest: &mut m });
             m.update(&b"="[..]);
             val.hash(&mut HashToDigest { digest: &mut m });
@@ -418,6 +425,10 @@ pub fn preprocessor_cache_entry_hash_key(
 
     // Strip basedirs from the input file path if configured
     let buf_to_hash = strip_basedirs(&buf, basedirs);
+    trace!(
+        target: "hash_key",
+        "preprocessor: input_file (basedir-stripped, encoded) = {buf_to_hash:?}"
+    );
     m.update(&buf_to_hash);
     let reader = std::fs::File::open(input_file)
         .with_context(|| format!("while hashing the input file '{}'", input_file.display()))?;
@@ -433,8 +444,11 @@ pub fn preprocessor_cache_entry_hash_key(
         }
         digest
     };
+    trace!(target: "hash_key", "preprocessor: input_file content digest = {digest}");
     m.update(digest.as_bytes());
-    Ok(Some(m.finish()))
+    let key = m.finish();
+    trace!(target: "hash_key", "preprocessor: final key = {key}");
+    Ok(Some(key))
 }
 
 /// Corresponds to a cached include file used in the pre-processor stage
