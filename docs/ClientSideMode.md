@@ -211,6 +211,17 @@ SCCACHE_CLIENT_SIDE=1
 The CLI and daemon must agree on the mode. The daemon does not enforce this; a mismatch simply
 means the daemon receives the new storage RPCs while the CLI constructs `IpcCompilationCache`.
 
+### Logging
+
+Because the pipeline runs in the CLI, so does most of the logging: under
+`make -jN` there are N+1 processes writing to one log destination. Rather than
+disabling logging in client-side mode, each line is made attributable (it carries
+the emitting pid, and every invocation logs its argv at `debug` level) and atomic
+(one `write_all`, hence one `write` syscall, per line). `SCCACHE_ERROR_LOG` is
+honored by the CLI too, opened `O_APPEND` so concurrent appends are serialised;
+only log output is redirected, since the CLI's stderr carries the compiler's
+diagnostics. See the [architecture doc](Architecture.md#logging).
+
 ### Tokio runtime sizing
 
 In client-side mode the CLI runtime is built with `worker_threads(2)` instead of the default
