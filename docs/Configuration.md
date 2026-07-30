@@ -175,7 +175,7 @@ Note that some env variables may need sccache server restart to take effect.
 * `SCCACHE_CACHED_CONF`
 * `SCCACHE_IDLE_TIMEOUT` how long the local daemon process waits for more client requests before exiting, in seconds. Set to `0` to run sccache permanently
 * `SCCACHE_STARTUP_NOTIFY` specify a path to a socket which will be used for server completion notification
-* `SCCACHE_MAX_FRAME_LENGTH` how much data can be transferred between client and server
+* `SCCACHE_MAX_FRAME_LENGTH` the largest single message that can be transferred between client and server, in bytes. Defaults to 1 GiB, and is capped at 4 GiB by the wire format. In client-side mode one message carries a whole cache entry, so a limit below the largest entry you compile means those entries are not cached (reported as cache write errors). The daemon's value is the one that counts, so restart the server after changing it.
 * `SCCACHE_NO_DAEMON` set to `1` to disable putting the server to the background
 * `SCCACHE_CLIENT_SIDE` set to `1` to run the compile in the client process and use the daemon only as a gateway to the cache storage (see [the architecture doc](Architecture.md#client-side-mode-sccache_client_side)). This is the recommended mode and is expected to become the only supported configuration in the future. Ignored when distributed compilation is in use.
 * `SCCACHE_CACHE_MULTIARCH` to disable caching of multi architecture builds.
