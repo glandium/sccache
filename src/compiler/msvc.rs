@@ -726,6 +726,8 @@ pub fn parse_arguments(
                 | Some(ClangModuleOutput(_))
                 | Some(ExtraHashFileClangModuleFile(_))
                 | Some(ModuleOnlyFlag)
+                | Some(IntegratedAs)
+                | Some(NoIntegratedAs)
                 | Some(TooHard(_)) => cannot_cache!(
                     arg.flag_str()
                         .unwrap_or("Can't handle complex arguments through clang",)
@@ -925,6 +927,7 @@ pub fn parse_arguments(
         unhashed_args,
         extra_dist_files: vec![],
         extra_hash_files,
+        uses_external_assembler: false,
         msvc_show_includes: show_includes,
         profile_generate,
         // FIXME: implement color_mode for msvc.
@@ -3088,6 +3091,7 @@ mod test {
             unhashed_args: vec![],
             extra_dist_files: vec![],
             extra_hash_files: vec![],
+            uses_external_assembler: false,
             msvc_show_includes: false,
             profile_generate: false,
             color_mode: ColorMode::Auto,
@@ -3178,6 +3182,7 @@ mod test {
             unhashed_args: vec![],
             extra_dist_files: vec![],
             extra_hash_files: vec![],
+            uses_external_assembler: false,
             msvc_show_includes: false,
             profile_generate: false,
             color_mode: ColorMode::Auto,
